@@ -1,4 +1,21 @@
-# Full code for research agent
+"""
+Smart Research Agent — Main Script
+
+This script runs a headless CLI-based research assistant.
+It takes a research prompt from the user, searches for relevant sources (local DB, web, arXiv),
+deduplicates and stores them, indexes the content in a vector database, retrieves the most
+relevant chunks, and synthesizes a final markdown answer with citations using an LLM.
+
+Key components:
+- CLI interface for user input and configuration
+- Structured JSON logging
+- Local SQLite + ChromaDB for storing and retrieving sources
+- Web and arXiv search integrations
+- Fetching, parsing, and cleaning source text
+- Text chunking, embedding generation, and duplicate detection
+- LLM-based search planning and answer synthesis with citations
+- LangSmith integration for tracking runs, spans, and LLM calls
+"""
 import argparse, os, hashlib, json, re, sqlite3, sys, uuid, time, pathlib, asyncio
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode

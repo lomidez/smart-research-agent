@@ -1,4 +1,20 @@
-# observability.py
+"""
+This module provides helper functions and context managers for integrating with LangSmith
+to track, log, and report the execution of research agent runs.
+
+Key features:
+- Starts and ends root runs for each user request, storing metadata and inputs.
+- Creates child spans (tools, API calls, embeddings, etc.) with timing and error handling.
+- Logs LLM calls with token usage, estimated costs, and structured outputs.
+- Maintains aggregated token and cost totals across a run.
+- Supports model pricing via the MODEL_PRICING_JSON environment variable.
+
+Usage:
+- Call `ls_start_root_run()` at the start of processing a user prompt.
+- Use `ls_span()` around external tool calls for detailed tracing.
+- Use `ls_log_llm_call()` after an LLM invocation to capture usage and cost.
+- End runs with `ls_end_root_run()` once processing completes or fails.
+"""
 import json, os, time
 from contextvars import ContextVar
 from contextlib import contextmanager
@@ -7,13 +23,9 @@ from typing import Any, Dict, Optional
 from langsmith import Client
 from langsmith.run_trees import RunTree
 
-# ---- Client & root run context ---------------------------------------------
-_client = Client()  # uses LANGSMITH_* env vars
+_client = Client() 
 _root_ctx: ContextVar[Optional[RunTree]] = ContextVar("ls_root_ctx", default=None)
 
-# Optional, configurable pricing (USD/token); override via env
-# Example:
-# export MODEL_PRICING_JSON='{"gpt-4o-mini":{"input":0.00015,"output":0.0006}}'
 _MODEL_PRICING: Dict[str, Dict[str, float]] = {}
 try:
     _MODEL_PRICING = json.loads(os.getenv("MODEL_PRICING_JSON", "{}")) or {}
@@ -49,9 +61,8 @@ def ls_end_root_run(outputs: Optional[Dict[str, Any]] = None, error: Optional[st
     if not root:
         return
     root.end(outputs=outputs or {}, error=error)
-    root.post()  # send to LangSmith immediately
+    root.post()
 
-# ---- Child spans ------------------------------------------------------------
 @contextmanager
 def ls_span(name: str, run_type: str = "tool", inputs: Optional[Dict[str, Any]] = None, metadata: Optional[Dict[str, Any]] = None):
     """
@@ -60,7 +71,7 @@ def ls_span(name: str, run_type: str = "tool", inputs: Optional[Dict[str, Any]] 
     parent = _root_ctx.get()
     child = RunTree(
         name=name,
-        run_type=run_type,    # "tool" | "llm" | "retriever" | "chain"
+        run_type=run_type,
         inputs=inputs or {},
         extra=metadata or {},
         parent_run=parent,
@@ -102,7 +113,6 @@ def ls_log_llm_call(*, model: str, messages: Any, response_text: str, prompt_tok
     })
     child.post()
 
-    # Aggregate onto the root for a single “totals” view
     if parent:
         meta = parent.extra or {}
         totals = meta.get("totals") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0}
@@ -111,4 +121,4 @@ def ls_log_llm_call(*, model: str, messages: Any, response_text: str, prompt_tok
         totals["total_tokens"] += int(total_tokens or 0)
         totals["estimated_cost_usd"] = float(totals["estimated_cost_usd"]) + float(cost)
         meta["totals"] = totals
-        parent.extra = meta  # keep in memory; posted when root ends
+        parent.extra = meta
