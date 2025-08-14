@@ -1,5 +1,7 @@
 # Smart Research Agent
 
+**Coverage report:** [View here](https://lomidez.github.io/smart-research-agent/coverage/)
+
 ## How to Run Without Docker
 
 ```bash
