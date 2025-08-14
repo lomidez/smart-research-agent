@@ -15,6 +15,7 @@ This file is just a running log of stuff I adapted from AI tools, docs, YouTube,
 - Gave me code for parallel fetching of sources and retry logic using `tenacity`.
 - Helped with Docker setup basics and adding run instructions to the README.
 - Helped me understand and implement logging of LLM calls and LangSmith tracing integration.
+- Helped to formulate my Smart Research Agent architecture into a clearer step-by-step plan, which I put in `README.md`.
 
 ---
 
