@@ -18,19 +18,14 @@ export $(grep -v '^#' .env | xargs)
 
 # 5. Run the agent
 python agent.py --prompt "What are the main LLM alignment techniques developed in 2024?"
-```
 
----
-
-## Running Tests (81% Coverage)
-
-```bash
+# 6. Running Tests (81% Coverage)
 python -m pytest --cov=agent --cov-report=term-missing
 ```
 
 ---
 
-## 🚀 Docker (Compose) Quick Start
+## Docker (Compose) Quick Start
 
 ### 1. Prerequisites
 
@@ -97,6 +92,106 @@ docker compose run --rm tests
 ```bash
 docker compose build --no-cache
 ```
+---
+## Agent Architecture & Design Choices
+
+The **Smart Research Agent** is a headless CLI-based research assistant designed for efficient, repeatable research workflows. This agent was designed for **fast, repeatable, and grounded research**, balancing **accuracy**, **cost**, and **latency**.
+
+**Core architecture:**
+
+- **CLI Entry Point (`agent.py`)** – Handles argument parsing, interactive mode, and one-shot queries.
+- **Logging & Observability** – Structured JSON logs written via `RotatingFileHandler` and integrated with **LangSmith** for tracing runs, spans, and LLM calls.
+- **Storage Layer**  
+  - **SQLite** – Stores source metadata, canonicalized URLs, deduplication hashes, and cleaned text.  
+  - **ChromaDB** – Persistent vector store for semantic retrieval of text chunks.
+- **Planning** – Uses an LLM (`planner_system.txt` + `planner_user.txt`) to generate targeted search queries for both **web** and **arXiv** sources.
+- **Fetching & Parsing** –  
+  - Web search via **SERPAPI**  
+  - Academic search via **arXiv API**  
+  - Fetches raw HTML/PDF, extracts clean text with **Trafilatura** + **BeautifulSoup**, or **PyPDF** for PDFs.
+- **Indexing** – Chunks text (~900 tokens), generates embeddings via OpenAI, deduplicates near-identical chunks, and indexes them in ChromaDB.
+- **Memory Management** – Before running searches, checks local DB for semantically similar sources to avoid unnecessary network calls.
+- **Prompting for Synthesis** –  
+  - **Planner Prompts** – Guide LLM to propose relevant search queries.  
+  - **Synthesis Prompts** – Combine retrieved evidence chunks with metadata to produce a well-cited, structured markdown answer.
+- **Final Output** – Markdown with:
+  1. Structured answer
+  2. Inline citations (ordinal numbers)
+  3. Reference list with URLs, authors, and publication years.
+
+
+**Design Rationale**
+
+**Planning - LLM-driven query generation**  
+- **Why:** A static query often misses context or nuances of the user’s request.  
+- **Choice:** Use `planner_system.txt` + `planner_user.txt` prompts to let an LLM generate focused web/arXiv search queries.  
+- **Trade-off:** Adds one LLM call per run, but improves relevance of sources.
+
+**Memory - local semantic cache**  
+- **Why:** Avoid fetching the same information repeatedly.  
+- **Choice:** Store processed sources in **SQLite** (metadata/text) and **ChromaDB** (vector embeddings) for semantic matching.  
+- **Trade-off:** Slight storage overhead, but large latency/cost savings for repeated or related queries.
+
+**Prompting (structured system + user templates)**  
+- **Why:** Consistent answer structure and reliable citation grounding.  
+- **Choice:**  
+  - **Planner prompts** to shape search strategy.  
+  - **Synthesis prompts** to instruct LLM to weave retrieved evidence into markdown with inline citations and a reference list.  
+- **Trade-off:** Requires maintaining separate prompt files, but makes prompt iteration and tuning easier.
+
+### **Query -> Answer Flow (High-level)**
+
+```text
+[1] User prompt (CLI)
+        ↓
+[2] Local memory check (ChromaDB semantic match)
+    ├── Enough local matches → Skip search
+    └── Not enough → LLM plans search queries
+            ↓
+[3] Search web (SERPAPI) + arXiv
+        ↓
+[4] Merge + deduplicate results
+        ↓
+[5] Fetch + parse (Trafilatura / PyPDF)
+        ↓
+[6] Store in SQLite + index in ChromaDB
+        ↓
+[7] Retrieve top-k relevant chunks (ChromaDB)
+        ↓
+[8] Build context block with snippets + citations
+        ↓
+[9] Synthesis prompt to LLM
+        ↓
+[10] Output: Structured markdown + References
+```
+**Key benefits of the system flow:**  
+- **Early exit on local coverage**: saves API calls and speeds up repeat queries.  
+- **LLM planning step**: better search recall and precision.  
+- **Evidence-first synthesis**: keeps answers grounded and citeable.
+
+---
+
+## Trade-offs & What I’d Tackle Next
+
+**Trade-offs in current implementation:**
+
+- **LLM-driven planning**  
+  - Pros: Adaptable to diverse prompts, dynamically generates relevant search queries.  
+  - Cons: Dependent on LLM accuracy; occasional off-topic queries.
+- **Single vector store (ChromaDB)**  
+  - Pros: Simple, persistent, fast retrieval for prototyping.  
+  - Cons: No sharding or distributed scaling; less optimal for very large datasets.
+- **OpenAI embeddings**  
+  - Pros: High quality, plug-and-play.  
+  - Cons: Adds latency and API cost; no offline embedding generation.
+
+**Next steps and improvements:**
+
+1. **Improve planning reliability** – Add fallback query templates when LLM output is incomplete or off-topic.
+2. **Add async fetching** – Parallelize web and PDF fetches to reduce latency.
+3. **Hybrid retrieval** – Combine keyword-based search with semantic retrieval for more diverse evidence.
+4. **Multi-model synthesis** – Experiment with other LLMs (Claude, Mistral) for synthesis quality and cost trade-offs.
+5. **Web UI mode** – Wrap CLI agent in a lightweight Flask/FastAPI server for easier non-technical use.
 
 ---
 
@@ -117,23 +212,3 @@ So, I share some traces examples **public traces**:
 [Watch the Demo](https://drive.google.com/file/d/1O5msWegq_I5EDYUxn9OweUbe8W8V6D9V/view?usp=sharing)
 
 ---
-
-
-Link to Langsmith:  https://smith.langchain.com/o/4b3bfd83-78a2-47d9-8a39-03be0da9d878/projects/p/d69655cf-1845-461e-bec7-fa717b713a2d?timeModel=%7B%22duration%22%3A%227d%22%7D 
-
-I do not think it's possible to share the whole project link, only via email invite: https://docs.smith.langchain.com/observability/how_to_guides/share_trace
-
-But here are examples of two traces: 
-    1. https://smith.langchain.com/public/48028d15-8d29-4ae0-be28-13adca350810/r
-    2. https://smith.langchain.com/public/a18b2289-787b-499a-85bc-5426166d474c/r
-
-How to run with Docker:
-TODO
-
-
-Video: https://drive.google.com/file/d/1O5msWegq_I5EDYUxn9OweUbe8W8V6D9V/view?usp=sharing 
-
-
-
-
-
