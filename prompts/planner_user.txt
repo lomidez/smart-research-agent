@@ -1,0 +1,12 @@
+Given the user research prompt:
+
+"{{prompt}}"
+
+Return a JSON object with:
+- "web_queries": up to 2 specific web search queries
+- "arxiv_queries": up to 2 specific arXiv queries
+
+Guidelines:
+- Prefer recency (2024–2025).
+- Use concrete key phrases (author, venue, library, model names) when possible.
+- No explanations, just valid JSON.

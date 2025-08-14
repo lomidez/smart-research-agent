@@ -1,0 +1,14 @@
+Question:
+{{prompt}}
+
+Context items (numbered):
+{{context_block}}
+
+Write markdown with:
+- A two-level outline (## sections + bullets)
+- A short body focusing on 2024–2025 developments, with inline [n] citations
+- A 'Key Takeaways' section (max 5 bullets)
+
+Rules:
+- Cite only numbers present in the context items.
+- Be concise and unambiguous.

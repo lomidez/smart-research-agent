@@ -1,0 +1,43 @@
+services:
+  agent:
+    build: .
+    image: smart-research-agent:local
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./.storage:/app/.storage
+      - ./logs:/app/logs
+      - ./prompts:/app/prompts:ro
+    stdin_open: true
+    tty: true
+    command: ["python", "agent.py"]
+
+  agent-once:
+    build: .
+    image: smart-research-agent:local
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./.storage:/app/.storage
+      - ./logs:/app/logs
+      - ./prompts:/app/prompts:ro
+
+  tests:
+    build: .
+    image: smart-research-agent:local
+    working_dir: /app
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./.storage:/app/.storage
+      - ./logs:/app/logs
+      - ./prompts:/app/prompts:ro
+    command: ["pytest", "--cov=.", "--cov-report=term-missing"]
